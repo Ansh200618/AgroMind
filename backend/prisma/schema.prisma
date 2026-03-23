@@ -1,0 +1,173 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Users & Farms ──────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  farms     Farm[]
+  settings  UserSettings?
+}
+
+model Farm {
+  id          String   @id @default(cuid())
+  name        String
+  ownerName   String?
+  totalAreaHa Float
+  // Location
+  village     String?
+  district    String   @default("Ludhiana")
+  state       String   @default("Punjab")
+  latitude    Float?
+  longitude   Float?
+  // Water source: borewell, canal, rainwater, mixed
+  waterSource String   @default("borewell")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fields      Field[]
+  sensors     Sensor[]
+}
+
+// ── Fields ─────────────────────────────────────────────────────────────────
+
+model Field {
+  id         String   @id @default(cuid())
+  name       String
+  areaHa     Float
+  // Crop details
+  cropType   String?  // wheat, rice, cotton, maize, mustard
+  cropSeason String?  // rabi, kharif, zaid
+  sowingDate DateTime?
+  // Soil details
+  soilType   String?  // loamy, clay, sandy, silt, black, red
+  soilPh     Float?
+  // Location within farm
+  latitude   Float?
+  longitude  Float?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  farmId     String
+  farm       Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+
+  sensors      Sensor[]
+  diseaseLogs  DiseaseLog[]
+  irrigationLogs IrrigationLog[]
+}
+
+// ── Sensors ────────────────────────────────────────────────────────────────
+
+model Sensor {
+  id           String   @id @default(cuid())
+  deviceId     String   @unique  // e.g. "S-01"
+  name         String
+  // Type: soil_moisture, temperature, weather_station, ph_meter
+  type         String
+  // Status: online, offline, low_battery
+  status       String   @default("online")
+  batteryLevel Int?     // 0–100
+  firmwareVer  String?
+  installedAt  DateTime @default(now())
+  lastSeenAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  farmId       String
+  farm         Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  fieldId      String?
+  field        Field?   @relation(fields: [fieldId], references: [id])
+
+  readings     SensorReading[]
+}
+
+model SensorReading {
+  id          String   @id @default(cuid())
+  moisture    Float?   // percentage 0–100
+  temperature Float?   // °C
+  humidity    Float?   // percentage
+  ph          Float?   // 0–14
+  windSpeed   Float?   // km/h
+  rainfall    Float?   // mm
+  recordedAt  DateTime @default(now())
+
+  sensorId    String
+  sensor      Sensor   @relation(fields: [sensorId], references: [id], onDelete: Cascade)
+
+  @@index([sensorId, recordedAt])
+}
+
+// ── Disease Detection Logs ─────────────────────────────────────────────────
+
+model DiseaseLog {
+  id              String   @id @default(cuid())
+  imageUrl        String   // path/URL of uploaded image
+  // type: healthy, warning, danger
+  resultType      String
+  diseaseName     String
+  confidence      Float    // 0–100
+  description     String
+  treatment       String?
+  // Colour hint for UI (#c0392b, #e6a817, #3d8b47)
+  colourHex       String?
+  // Raw JSON response from AI model
+  rawModelOutput  Json?
+  createdAt       DateTime @default(now())
+
+  fieldId         String?
+  field           Field?   @relation(fields: [fieldId], references: [id])
+}
+
+// ── Irrigation Logs ────────────────────────────────────────────────────────
+
+model IrrigationLog {
+  id           String   @id @default(cuid())
+  // Status: scheduled, active, done, cancelled
+  status       String   @default("scheduled")
+  scheduledAt  DateTime
+  startedAt    DateTime?
+  completedAt  DateTime?
+  durationMin  Int?
+  waterUsedL   Float?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  fieldId      String
+  field        Field    @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+}
+
+// ── User Settings ──────────────────────────────────────────────────────────
+
+model UserSettings {
+  id              String  @id @default(cuid())
+  alertLanguage   String  @default("English")
+  autoIrrigation  Boolean @default(false)
+  weatherAlerts   Boolean @default(true)
+  diseaseAlerts   Boolean @default(true)
+  smsAlerts       Boolean @default(false)
+  mandiPrices     Boolean @default(false)
+  apiUrl          String?
+  updatedAt       DateTime @updatedAt
+
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

@@ -1,0 +1,36 @@
+# ── Node.js ───────────────────────────────────────────────
+node_modules/
+dist/
+*.js.map
+*.d.ts.map
+
+# ── Environment ───────────────────────────────────────────
+.env
+*.env
+
+# ── Uploads ───────────────────────────────────────────────
+backend/uploads/
+
+# ── Python ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# ── ML model weights (large binaries — use Git LFS or cloud storage) ─────────
+ai-service/models/*.h5
+ai-service/models/*.pt
+ai-service/models/*.pkl
+
+# ── OS / IDE ──────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
