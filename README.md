@@ -146,7 +146,7 @@ This project can run fully online for free using:
    - `AI_SERVICE_URL=https://<your-ai-service>.onrender.com`
    - `UPLOAD_DIR=./uploads`
    - `MAX_FILE_SIZE_MB=10`
-    - Optional: `GEMINI_API_KEY` or `OPENAI_API_KEY`
+   - Optional: `GEMINI_API_KEY` or `OPENAI_API_KEY`
    - Recommended: `CORS_ORIGIN=https://<username>.github.io` (restrict CORS to your frontend domain)
 
 ### 4) Run Database Setup Once
