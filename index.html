@@ -1456,7 +1456,7 @@ async function simulateDisease(event) {
     const fill = document.getElementById('conf-fill');
     fill.style.background = '#e6a817';
     fill.style.width = '40%';
-    showToast(`⚠ ${err.message}`);
+    showToast(`⚠ Dashboard refresh failed: ${err.message}`);
   }
 }
 

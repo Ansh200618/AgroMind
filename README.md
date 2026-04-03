@@ -131,7 +131,7 @@ This project can run fully online for free using:
    - `LOG_LEVEL=info`
 6. Deploy and note your URL (example: `https://agromind-ai.onrender.com`).
 
-### 2) Create Free Neon Postgres
+### 2) Create Free Neon PostgreSQL
 1. Create a Neon project and database.
 2. Copy the connection string and use it as backend `DATABASE_URL`.
 
