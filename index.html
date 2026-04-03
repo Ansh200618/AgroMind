@@ -1165,7 +1165,7 @@
 
 /* ── MOCK DATA ── (replace with API calls) */
 
-// Update this only as a starter default; users can override it in Settings → API Base URL.
+// Update this starter default to your deployed backend URL; users can also override it in Settings → API Base URL.
 const DEFAULT_API_BASE = 'https://agromind-api.onrender.com';
 
 function normalizeBaseUrl(url) {
@@ -1778,7 +1778,7 @@ async function calculateIrrigationPlan() {
 function exportSensorsCSV() {
   const url = api('/api/sensors/export');
   window.open(url, '_blank', 'noopener,noreferrer');
-  showToast('📥 Export started');
+  showToast('📥 Opening export URL...');
 }
 
 /* ── TOAST ── */
