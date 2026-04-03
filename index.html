@@ -1165,7 +1165,7 @@
 
 /* ── MOCK DATA ── (replace with API calls) */
 
-// Update this starter default to your deployed backend URL; users can also override it in Settings → API Base URL.
+// Example starter URL only: set this to your deployed backend URL, or override via Settings → API Base URL.
 const DEFAULT_API_BASE = 'https://agromind-api.onrender.com';
 
 function normalizeBaseUrl(url) {
@@ -1183,6 +1183,7 @@ function api(path) {
 }
 
 function acresToHectares(acres) {
+  // 1 acre = 0.404686 hectares
   return Number(acres) * 0.404686;
 }
 
@@ -1677,6 +1678,7 @@ async function loadSettings() {
     }
     document.getElementById('s-api').value = getApiBase();
   } catch (_) {
+    console.warn('[settings/load] Using API base fallback due to load failure');
     document.getElementById('s-api').value = getApiBase();
   }
 }
@@ -1694,7 +1696,9 @@ async function refreshSchedule() {
       MOCK.schedule = data.schedule;
       renderSchedule();
     }
-  } catch (_) {}
+  } catch (err) {
+    console.warn('[irrigation/schedule] refresh failed', err);
+  }
 }
 
 async function refreshSensors() {
@@ -1704,7 +1708,9 @@ async function refreshSensors() {
       MOCK.sensors = data.sensors;
       renderSensors();
     }
-  } catch (_) {}
+  } catch (err) {
+    console.warn('[sensors/live] refresh failed', err);
+  }
 }
 
 async function refreshDashboard() {
