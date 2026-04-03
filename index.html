@@ -1165,6 +1165,7 @@
 
 /* ── MOCK DATA ── (replace with API calls) */
 
+// Update this only as a starter default; users can override it in Settings → API Base URL.
 const DEFAULT_API_BASE = 'https://agromind-api.onrender.com';
 
 function normalizeBaseUrl(url) {
@@ -1809,6 +1810,7 @@ renderSensors();
 loadSettings();
 refreshDashboard();
 setInterval(refreshSensors, 30000);
+setInterval(refreshDashboard, 120000);
 
 </script>
 </body>

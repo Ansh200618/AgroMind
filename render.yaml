@@ -25,7 +25,7 @@ services:
       - key: PORT
         value: 10000
       - key: CORS_ORIGIN
-        value: "*"
+        value: https://<username>.github.io
       - key: UPLOAD_DIR
         value: ./uploads
       - key: MAX_FILE_SIZE_MB

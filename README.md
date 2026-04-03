@@ -146,11 +146,11 @@ This project can run fully online for free using:
    - `AI_SERVICE_URL=https://<your-ai-service>.onrender.com`
    - `UPLOAD_DIR=./uploads`
    - `MAX_FILE_SIZE_MB=10`
-   - Optional: `GEMINI_API_KEY` or `OPENAI_API_KEY`
-   - Optional: `CORS_ORIGIN=https://<username>.github.io`
+    - Optional: `GEMINI_API_KEY` or `OPENAI_API_KEY`
+   - Recommended: `CORS_ORIGIN=https://<username>.github.io` (restrict CORS to your frontend domain)
 
 ### 4) Run Database Setup Once
-After first backend deploy, run:
+After first backend deploy, run in Render Shell for the backend service (or locally with the same production `DATABASE_URL`):
 ```bash
 npx prisma migrate deploy
 npx ts-node prisma/seed.ts
