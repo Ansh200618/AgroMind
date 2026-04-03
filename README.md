@@ -150,7 +150,8 @@ This project can run fully online for free using:
    - Recommended: `CORS_ORIGIN=https://<username>.github.io` (restrict CORS to your frontend domain)
 
 ### 4) Run Database Setup Once
-After first backend deploy, run in Render Shell for the backend service (or locally with the same production `DATABASE_URL`):
+After first backend deploy, run in Render Shell for the backend service (or locally with the same production `DATABASE_URL`).  
+(`ts-node` is already available via backend devDependencies in this repository.)
 ```bash
 npx prisma migrate deploy
 npx ts-node prisma/seed.ts

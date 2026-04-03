@@ -24,7 +24,7 @@ services:
         value: production
       - key: PORT
         value: 10000
-      # REQUIRED: replace <username> with your GitHub username (e.g., https://johndoe.github.io) or set your actual frontend domain URL.
+      # REQUIRED: replace <username> with your GitHub username (e.g., https://<username>.github.io) or set your actual frontend domain URL.
       - key: CORS_ORIGIN
         value: https://<username>.github.io
       - key: UPLOAD_DIR

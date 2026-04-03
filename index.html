@@ -1165,7 +1165,7 @@
 
 /* ── MOCK DATA ── (replace with API calls) */
 
-// Example starter URL only: set this to your deployed backend URL (or blank it to force Settings configuration).
+// Example starter URL only: set this to your deployed backend URL; users can override it in Settings → API Base URL.
 const DEFAULT_API_BASE = 'https://agromind-api.onrender.com';
 
 function normalizeBaseUrl(url) {
@@ -1183,8 +1183,8 @@ function api(path) {
 }
 
 function acresToHectares(acres) {
-  // 1 acre = 0.404686 hectares
-  return Number(acres) * 0.404686;
+  // 1 acre = 0.404685642 hectares
+  return Number(acres) * 0.404685642;
 }
 
 async function requestJson(path, options = {}) {
