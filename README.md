@@ -112,6 +112,70 @@ The HTML file already contains hooks for every API endpoint — no changes neede
 
 ---
 
+
+## Free Online Deployment (No localhost)
+
+This project can run fully online for free using:
+- **Frontend:** GitHub Pages
+- **Backend:** Render Free Web Service
+- **AI Service:** Render Free Web Service
+- **Database:** Neon Free PostgreSQL
+
+### 1) Deploy AI Service on Render
+1. Create a new Web Service from this repository.
+2. Set **Root Directory** to `ai-service`.
+3. Build command: `pip install -r requirements.txt`
+4. Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+5. Env vars:
+   - `MODEL_DIR=./models`
+   - `LOG_LEVEL=info`
+6. Deploy and note your URL (example: `https://agromind-ai.onrender.com`).
+
+### 2) Create Free Neon Postgres
+1. Create a Neon project and database.
+2. Copy the connection string and use it as backend `DATABASE_URL`.
+
+### 3) Deploy Backend on Render
+1. Create another Web Service from the same repository.
+2. Set **Root Directory** to `backend`.
+3. Build command: `npm install && npx prisma generate && npm run build`
+4. Start command: `npx prisma migrate deploy && node dist/index.js`
+5. Env vars:
+   - `DATABASE_URL=<neon_connection_string>`
+   - `NODE_ENV=production`
+   - `AI_SERVICE_URL=https://<your-ai-service>.onrender.com`
+   - `UPLOAD_DIR=./uploads`
+   - `MAX_FILE_SIZE_MB=10`
+   - Optional: `GEMINI_API_KEY` or `OPENAI_API_KEY`
+   - Optional: `CORS_ORIGIN=https://<username>.github.io`
+
+### 4) Run Database Setup Once
+After first backend deploy, run:
+```bash
+npx prisma migrate deploy
+npx ts-node prisma/seed.ts
+```
+
+### 5) Deploy Frontend on GitHub Pages
+1. Keep `index.html` in repository root (already done).
+2. In GitHub repo: **Settings → Pages**.
+3. Source: **Deploy from branch** (`main` / root).
+4. Open your Pages URL.
+
+### 6) Configure Frontend API Base
+- The frontend uses `https://agromind-api.onrender.com` by default.
+- In **Settings → API Base URL**, set your actual backend URL and click **Save All**.
+- This value is stored in browser local storage and used for all API calls.
+
+### 7) Health Checks
+- Backend: `https://<your-backend>.onrender.com/api/health`
+- AI service: `https://<your-ai-service>.onrender.com/health`
+
+### 8) Free Tier Notes
+- Render free services sleep when idle; first request can be slower.
+- `./uploads` is ephemeral on free instances (images may reset after restart).
+- For persistent media, move uploads to a free object storage service later.
+
 ## API Reference
 
 | Method | Endpoint | Description |

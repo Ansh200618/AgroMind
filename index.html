@@ -909,14 +909,14 @@
         🔌 <strong>Backend hook:</strong> <code>POST /api/irrigation/calculate</code> · Send form data, receive litres + duration
       </div>
       <div class="form-grid" style="margin-bottom:14px;">
-        <div class="form-group"><label class="form-label">Crop Type</label><select class="form-control"><option>Wheat</option><option>Rice</option><option>Cotton</option><option>Maize</option><option>Mustard</option></select></div>
-        <div class="form-group"><label class="form-label">Soil Type</label><select class="form-control"><option>Loamy</option><option>Clay</option><option>Sandy</option><option>Silty</option></select></div>
-        <div class="form-group"><label class="form-label">Field Area (Acres)</label><input class="form-control" type="number" value="3.5" step="0.5"></div>
-        <div class="form-group"><label class="form-label">Current Moisture (%)</label><input class="form-control" type="number" value="41" min="0" max="100"></div>
-        <div class="form-group"><label class="form-label">Target Moisture (%)</label><input class="form-control" type="number" value="70" min="0" max="100"></div>
-        <div class="form-group"><label class="form-label">Crop Growth Stage</label><select class="form-control"><option>Germination</option><option>Vegetative</option><option>Flowering</option><option>Grain Fill</option><option>Maturity</option></select></div>
+        <div class="form-group"><label class="form-label">Crop Type</label><select class="form-control" id="irr-crop"><option>Wheat</option><option>Rice</option><option>Cotton</option><option>Maize</option><option>Mustard</option></select></div>
+        <div class="form-group"><label class="form-label">Soil Type</label><select class="form-control" id="irr-soil"><option>Loamy</option><option>Clay</option><option>Sandy</option><option>Silty</option></select></div>
+        <div class="form-group"><label class="form-label">Field Area (Acres)</label><input class="form-control" type="number" value="3.5" step="0.5" id="irr-area"></div>
+        <div class="form-group"><label class="form-label">Current Moisture (%)</label><input class="form-control" type="number" value="41" min="0" max="100" id="irr-current-moisture"></div>
+        <div class="form-group"><label class="form-label">Target Moisture (%)</label><input class="form-control" type="number" value="70" min="0" max="100" id="irr-target-moisture"></div>
+        <div class="form-group"><label class="form-label">Crop Growth Stage</label><select class="form-control" id="irr-stage"><option>Germination</option><option>Vegetative</option><option>Flowering</option><option>Grain Fill</option><option>Maturity</option></select></div>
       </div>
-      <button class="btn btn-primary" onclick="showToast('⚙ Calculating... POST /api/irrigation/calculate')">Calculate Irrigation Plan</button>
+      <button class="btn btn-primary" onclick="calculateIrrigationPlan()">Calculate Irrigation Plan</button>
     </div>
   </section>
 
@@ -964,7 +964,7 @@
         </div>
 
         <div style="margin-top:12px;font-size:12px;color:var(--text-300);">
-          ℹ This runs <strong>mock detection</strong>. Connect <code>POST /api/disease/analyse</code> to use your real CNN model.
+          ℹ Detection runs through the live backend at <code>POST /api/disease/analyse</code>.
         </div>
       </div>
 
@@ -1011,7 +1011,7 @@
       <div class="card-title"><span class="title-icon">✅</span> Recommended Crops</div>
       <div class="crop-grid" id="crop-grid"></div>
       <div style="margin-top:16px;background:var(--amber-100);border-radius:var(--radius-sm);padding:12px 14px;font-size:12.5px;color:var(--amber-800);border:1px solid #f0d08a;">
-        <strong>💡 Advisory note:</strong> Wheat and Mustard show highest historical yield in Loamy soils with moderate rainfall in Punjab's Rabi season. Consider intercropping for maximum land utilisation. <em>Replace this with your model's explanation output.</em>
+        <strong>💡 Advisory note:</strong> <span id="crop-summary">Wheat and Mustard show highest historical yield in Loamy soils with moderate rainfall in Punjab's Rabi season. Consider intercropping for maximum land utilisation.</span>
       </div>
     </div>
   </section>
@@ -1039,7 +1039,7 @@
           <div class="msg-avatar">🌿</div>
           <div class="msg-bubble">
             Sat Sri Akal! 🙏 I'm your Farm AI assistant. Ask me anything about crops, irrigation, diseases, fertilisers, market prices, or government schemes.<br><br>
-            <em style="font-size:12px;opacity:0.7">Note: Currently using mock responses. Connect backend at <code>POST /api/chat/message</code> to enable real AI.</em>
+            <em style="font-size:12px;opacity:0.7">Note: Chat uses live backend endpoint <code>POST /api/chat/message</code>.</em>
           </div>
         </div>
       </div>
@@ -1067,7 +1067,7 @@
         <h2>Sensors & Data</h2>
         <p>Live readings from all field IoT sensors</p>
       </div>
-      <button class="btn btn-secondary" onclick="showToast('📥 Exporting CSV... GET /api/sensors/export')">📥 Export CSV</button>
+      <button class="btn btn-secondary" onclick="exportSensorsCSV()">📥 Export CSV</button>
     </div>
 
     <div class="api-banner">
@@ -1164,6 +1164,40 @@
 'use strict';
 
 /* ── MOCK DATA ── (replace with API calls) */
+
+const DEFAULT_API_BASE = 'https://agromind-api.onrender.com';
+
+function normalizeBaseUrl(url) {
+  return String(url || '').trim().replace(/\/+$/, '');
+}
+
+function getApiBase() {
+  const configured = normalizeBaseUrl(localStorage.getItem('agromind_api_base') || '');
+  if (configured) return configured;
+  return normalizeBaseUrl(DEFAULT_API_BASE);
+}
+
+function api(path) {
+  return `${getApiBase()}${path}`;
+}
+
+function acresToHectares(acres) {
+  return Number(acres) * 0.404686;
+}
+
+async function requestJson(path, options = {}) {
+  const res = await fetch(api(path), options);
+  if (!res.ok) {
+    let msg = `Request failed (${res.status})`;
+    try {
+      const body = await res.json();
+      if (body?.error) msg = body.error;
+    } catch (_) {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
 const MOCK = {
   soilMoisture: [
     { name: 'Field A – Wheat',   pct: 72, color: '#4caf60' },
@@ -1382,11 +1416,10 @@ function handleDrop(e) {
   if (file) simulateDisease({ target:{ files:[file] } });
 }
 
-function simulateDisease(event) {
+async function simulateDisease(event) {
   const file = event.target.files[0];
   if (!file) return;
 
-  // Preview
   const reader = new FileReader();
   reader.onload = e => {
     const p = document.getElementById('img-preview');
@@ -1395,23 +1428,34 @@ function simulateDisease(event) {
   };
   reader.readAsDataURL(file);
 
-  // Show loading
   const loading = document.getElementById('disease-loading');
   const result  = document.getElementById('disease-result');
   loading.style.display = 'block';
   result.className = 'disease-result';
 
-  // Simulate API latency — replace with actual fetch
-  setTimeout(() => {
-    /* ── BACKEND HOOK ──
-    fetch('/api/disease/analyse', { method:'POST', body: formData })
-      .then(r => r.json())
-      .then(data => showDiseaseResult(data));
-    */
-    const mock = DISEASE_MOCKS[Math.floor(Math.random() * DISEASE_MOCKS.length)];
+  try {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const data = await requestJson('/api/disease/analyse', {
+      method: 'POST',
+      body: formData,
+    });
+
     loading.style.display = 'none';
-    showDiseaseResult(mock);
-  }, 1800);
+    showDiseaseResult(data);
+    showToast('✅ Disease analysis completed');
+  } catch (err) {
+    loading.style.display = 'none';
+    result.className = 'disease-result show warning';
+    document.getElementById('disease-title').textContent = '⚠️ Detection unavailable';
+    document.getElementById('disease-desc').textContent = err.message;
+    document.getElementById('conf-label').textContent = 'Try again in a moment';
+    const fill = document.getElementById('conf-fill');
+    fill.style.background = '#e6a817';
+    fill.style.width = '40%';
+    showToast(`⚠ ${err.message}`);
+  }
 }
 
 function showDiseaseResult({ type, title, desc, conf, col }) {
@@ -1445,26 +1489,52 @@ function showDiseaseResult({ type, title, desc, conf, col }) {
    const res = await fetch('/api/crops/recommend', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(params) });
    const { crops, summary } = await res.json();
 */
-function runCropAdvisor() {
+async function runCropAdvisor() {
   const btn = document.getElementById('crop-btn');
   btn.textContent = '⏳ Analysing...';
   btn.disabled = true;
 
-  setTimeout(() => {
-    /* ── BACKEND HOOK ── */
+  const params = {
+    soil: document.getElementById('c-soil').value,
+    ph: Number(document.getElementById('c-ph').value),
+    rainfall: Number(document.getElementById('c-rain').value),
+    temp: Number(document.getElementById('c-temp').value),
+    region: document.getElementById('c-region').value,
+    season: document.getElementById('c-season').value,
+    nitrogen: Number(document.getElementById('c-n').value),
+    water: document.getElementById('c-water').value,
+  };
+
+  try {
+    const data = await requestJson('/api/crops/recommend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+
     const grid = document.getElementById('crop-grid');
-    grid.innerHTML = MOCK.cropRec.map(c => `
+    const crops = Array.isArray(data.crops) ? data.crops : [];
+    grid.innerHTML = crops.map(c => `
       <div class="crop-card">
-        <div class="crop-emoji">${c.emoji}</div>
-        <div class="crop-name">${c.name}</div>
-        <div class="crop-why">${c.why}</div>
-        <div class="crop-score">${c.score}% match</div>
+        <div class="crop-emoji">${c.emoji || '🌱'}</div>
+        <div class="crop-name">${c.name || 'Recommended Crop'}</div>
+        <div class="crop-why">${c.why || 'Suitable for provided conditions'}</div>
+        <div class="crop-score">${Math.round(Number(c.score || 0))}% match</div>
       </div>`).join('');
+
+    if (crops.length === 0) {
+      grid.innerHTML = '<div style="font-size:13px;color:var(--text-300)">No recommendations returned.</div>';
+    }
+
+    document.getElementById('crop-summary').textContent = data.summary || 'Recommendations generated from current conditions.';
     document.getElementById('crop-results').style.display = 'block';
+    showToast('✅ Crop recommendations ready');
+  } catch (err) {
+    showToast(`⚠ ${err.message}`);
+  } finally {
     btn.textContent = '🔍 Get Recommendations';
     btn.disabled = false;
-    showToast('✅ 6 crop recommendations ready');
-  }, 1400);
+  }
 }
 
 /* ── CHAT (mock — swap for real API) ──
@@ -1479,7 +1549,7 @@ function runCropAdvisor() {
 let chatHistory = [];
 let chatIdx = 0;
 
-function sendMsg() {
+async function sendMsg() {
   const input = document.getElementById('chat-in');
   const btn   = document.getElementById('chat-send-btn');
   const msg   = input.value.trim();
@@ -1491,7 +1561,6 @@ function sendMsg() {
   btn.disabled = true;
   btn.textContent = '...';
 
-  // Typing indicator
   const tid = 'typing-' + Date.now();
   const msgs = document.getElementById('chat-msgs');
   msgs.insertAdjacentHTML('beforeend', `
@@ -1501,16 +1570,24 @@ function sendMsg() {
     </div>`);
   msgs.scrollTop = msgs.scrollHeight;
 
-  setTimeout(() => {
-    /* ── BACKEND HOOK ── */
+  try {
+    const data = await requestJson('/api/chat/message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, history: chatHistory }),
+    });
+
     document.getElementById(tid)?.remove();
-    const reply = MOCK.chatMocks[chatIdx % MOCK.chatMocks.length];
-    chatIdx++;
+    const reply = data.reply || 'Sorry, I could not generate a response.';
     addBubble(reply, 'ai');
     chatHistory.push({ role:'assistant', content: reply });
+  } catch (err) {
+    document.getElementById(tid)?.remove();
+    addBubble(`⚠ ${err.message}`, 'ai');
+  } finally {
     btn.disabled = false;
     btn.textContent = 'Send';
-  }, 1200 + Math.random() * 800);
+  }
 }
 
 function addBubble(text, role) {
@@ -1530,28 +1607,177 @@ function quickMsg(msg) {
 }
 
 /* ── IRRIGATION ACCEPT ── */
-function acceptIrrPlan() {
-  /* ── BACKEND HOOK: POST /api/irrigation/accept ── */
-  showToast('✅ Irrigation plan accepted — schedule updated');
+async function acceptIrrPlan() {
+  try {
+    const data = await requestJson('/api/irrigation/accept', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    showToast(data.message || '✅ Irrigation plan accepted — schedule updated');
+    await refreshSchedule();
+  } catch (err) {
+    showToast(`⚠ ${err.message}`);
+  }
 }
 
 /* ── SETTINGS SAVE ── */
-function saveSettings() {
+async function saveSettings() {
+  const apiBaseInput = normalizeBaseUrl(document.getElementById('s-api').value || '');
   const data = {
     farmName:      document.getElementById('s-fname').value,
     area:          document.getElementById('s-area').value,
     waterSource:   document.getElementById('s-water').value,
     alertLanguage: document.getElementById('s-lang').value,
-    apiUrl:        document.getElementById('s-api').value,
+    apiUrl:        apiBaseInput,
     autoIrr:       document.getElementById('s-auto-irr').checked,
     weather:       document.getElementById('s-weather').checked,
     disease:       document.getElementById('s-disease').checked,
     sms:           document.getElementById('s-sms').checked,
     mandi:         document.getElementById('s-mandi').checked,
   };
-  /* ── BACKEND HOOK: POST /api/settings ── */
-  console.log('Settings to save:', data);
-  showToast('💾 Settings saved successfully');
+
+  if (apiBaseInput) {
+    localStorage.setItem('agromind_api_base', apiBaseInput);
+  } else {
+    localStorage.removeItem('agromind_api_base');
+  }
+
+  try {
+    await requestJson('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    showToast('💾 Settings saved successfully');
+  } catch (err) {
+    showToast(`⚠ ${err.message}`);
+  }
+}
+
+async function loadSettings() {
+  try {
+    const data = await requestJson('/api/settings');
+    const settings = data.settings;
+    if (!settings) return;
+
+    document.getElementById('s-fname').value = settings.farmName ?? '';
+    document.getElementById('s-area').value = settings.area ?? '';
+    setSelectValue('s-water', settings.waterSource ?? '');
+    setSelectValue('s-lang', settings.alertLanguage ?? 'English');
+    document.getElementById('s-auto-irr').checked = Boolean(settings.autoIrr);
+    document.getElementById('s-weather').checked = Boolean(settings.weather);
+    document.getElementById('s-disease').checked = Boolean(settings.disease);
+    document.getElementById('s-sms').checked = Boolean(settings.sms);
+    document.getElementById('s-mandi').checked = Boolean(settings.mandi);
+
+    if (settings.apiUrl && !localStorage.getItem('agromind_api_base')) {
+      localStorage.setItem('agromind_api_base', normalizeBaseUrl(settings.apiUrl));
+    }
+    document.getElementById('s-api').value = getApiBase();
+  } catch (_) {
+    document.getElementById('s-api').value = getApiBase();
+  }
+}
+
+function setSelectValue(id, value) {
+  const el = document.getElementById(id);
+  const opt = Array.from(el.options).find(o => o.value === value || o.text === value);
+  if (opt) el.value = opt.value;
+}
+
+async function refreshSchedule() {
+  try {
+    const data = await requestJson('/api/irrigation/schedule');
+    if (Array.isArray(data.schedule) && data.schedule.length > 0) {
+      MOCK.schedule = data.schedule;
+      renderSchedule();
+    }
+  } catch (_) {}
+}
+
+async function refreshSensors() {
+  try {
+    const data = await requestJson('/api/sensors/live');
+    if (Array.isArray(data.sensors) && data.sensors.length > 0) {
+      MOCK.sensors = data.sensors;
+      renderSensors();
+    }
+  } catch (_) {}
+}
+
+async function refreshDashboard() {
+  try {
+    const data = await requestJson('/api/dashboard');
+    if (Array.isArray(data.soilMoisture)) MOCK.soilMoisture = data.soilMoisture;
+    if (Array.isArray(data.alerts)) MOCK.alerts = data.alerts;
+    if (Array.isArray(data.waterChart)) MOCK.waterChart = data.waterChart;
+    if (Array.isArray(data.schedule)) MOCK.schedule = data.schedule;
+    if (Array.isArray(data.diseaseHistory)) MOCK.diseaseHistory = data.diseaseHistory;
+    if (Array.isArray(data.sensors)) MOCK.sensors = data.sensors;
+
+    renderSoilBars();
+    renderAlerts();
+    renderChart();
+    renderSchedule();
+    renderDiseaseHistory();
+    renderSensors();
+
+    const totalToday = (MOCK.waterChart || []).find(d => d.day === 'Today')?.val;
+    if (typeof totalToday === 'number') {
+      document.getElementById('stat-water').textContent = `${totalToday.toLocaleString('en-IN')} L`;
+    }
+    const moistureValues = (MOCK.soilMoisture || []).map(s => Number(s.pct)).filter(n => !Number.isNaN(n));
+    if (moistureValues.length > 0) {
+      const avg = Math.round(moistureValues.reduce((a,b)=>a+b,0) / moistureValues.length);
+      document.getElementById('stat-moisture').textContent = `${avg}%`;
+    }
+    document.getElementById('stat-fields').textContent = String((MOCK.sensors || []).length || 0);
+    const diseaseCount = (MOCK.diseaseHistory || []).filter(d => d.label !== 'Healthy').length;
+    document.getElementById('stat-disease').textContent = String(diseaseCount);
+  } catch (err) {
+    showToast(`⚠ ${err.message}`);
+  }
+}
+
+async function calculateIrrigationPlan() {
+  const cropType = document.getElementById('irr-crop').value;
+  const areaAcres = Number(document.getElementById('irr-area').value || 0);
+  const soilMoisture = Number(document.getElementById('irr-current-moisture').value || 0);
+
+  try {
+    const data = await requestJson('/api/irrigation/calculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cropType,
+        areaHa: acresToHectares(areaAcres),
+        soilMoisture,
+        targetMoisture: Number(document.getElementById('irr-target-moisture').value || 70),
+        stage: document.getElementById('irr-stage').value,
+        soilType: document.getElementById('irr-soil').value,
+      }),
+    });
+
+    const box = document.getElementById('irr-ai-box');
+    box.innerHTML = `
+      <div style="font-weight:700;margin-bottom:6px;color:var(--green-800)">✅ AI Recommendation</div>
+      <div><strong>Water required:</strong> ${data.waterLitres ?? '—'} L</div>
+      <div><strong>Duration:</strong> ${data.durationMin ?? '—'} min</div>
+      <div style="margin-top:6px;">${data.recommendation || 'Plan calculated successfully.'}</div>
+      <div style="margin-top:8px;font-size:12px;opacity:.8">Calculated via live endpoint: <code>POST /api/irrigation/calculate</code></div>
+    `;
+
+    showToast('✅ Irrigation plan calculated');
+  } catch (err) {
+    showToast(`⚠ ${err.message}`);
+  }
+}
+
+function exportSensorsCSV() {
+  const url = api('/api/sensors/export');
+  window.open(url, '_blank', 'noopener,noreferrer');
+  showToast('📥 Export started');
 }
 
 /* ── TOAST ── */
@@ -1573,12 +1799,17 @@ function updateClock() {
 setInterval(updateClock, 60000);
 
 /* ── INIT ── */
+document.getElementById('s-api').value = getApiBase();
 renderSoilBars();
 renderAlerts();
 renderChart();
 renderSchedule();
 renderDiseaseHistory();
 renderSensors();
+loadSettings();
+refreshDashboard();
+setInterval(refreshSensors, 30000);
+
 </script>
 </body>
 </html>
