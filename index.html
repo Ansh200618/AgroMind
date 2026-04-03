@@ -861,7 +861,7 @@
         <h2>Smart Irrigation <span class="tag tag-ai">AI Ready</span></h2>
         <p>AI-optimised watering schedule based on soil, weather & crop data</p>
       </div>
-      <button class="btn btn-primary" onclick="showToast('▶ Manual run triggered — connecting to pump controller')">▶ Run Now</button>
+      <button class="btn btn-primary" onclick="runIrrigationNow()">▶ Run Now</button>
     </div>
 
     <div class="api-banner">
@@ -909,14 +909,14 @@
         🔌 <strong>Backend hook:</strong> <code>POST /api/irrigation/calculate</code> · Send form data, receive litres + duration
       </div>
       <div class="form-grid" style="margin-bottom:14px;">
-        <div class="form-group"><label class="form-label">Crop Type</label><select class="form-control"><option>Wheat</option><option>Rice</option><option>Cotton</option><option>Maize</option><option>Mustard</option></select></div>
-        <div class="form-group"><label class="form-label">Soil Type</label><select class="form-control"><option>Loamy</option><option>Clay</option><option>Sandy</option><option>Silty</option></select></div>
-        <div class="form-group"><label class="form-label">Field Area (Acres)</label><input class="form-control" type="number" value="3.5" step="0.5"></div>
-        <div class="form-group"><label class="form-label">Current Moisture (%)</label><input class="form-control" type="number" value="41" min="0" max="100"></div>
-        <div class="form-group"><label class="form-label">Target Moisture (%)</label><input class="form-control" type="number" value="70" min="0" max="100"></div>
-        <div class="form-group"><label class="form-label">Crop Growth Stage</label><select class="form-control"><option>Germination</option><option>Vegetative</option><option>Flowering</option><option>Grain Fill</option><option>Maturity</option></select></div>
-      </div>
-      <button class="btn btn-primary" onclick="showToast('⚙ Calculating... POST /api/irrigation/calculate')">Calculate Irrigation Plan</button>
+          <div class="form-group"><label class="form-label">Crop Type</label><select class="form-control" id="irr-crop"><option>Wheat</option><option>Rice</option><option>Cotton</option><option>Maize</option><option>Mustard</option></select></div>
+          <div class="form-group"><label class="form-label">Soil Type</label><select class="form-control" id="irr-soil"><option>Loamy</option><option>Clay</option><option>Sandy</option><option>Silty</option></select></div>
+          <div class="form-group"><label class="form-label">Field Area (Acres)</label><input class="form-control" type="number" value="3.5" step="0.5" id="irr-area"></div>
+          <div class="form-group"><label class="form-label">Current Moisture (%)</label><input class="form-control" type="number" value="41" min="0" max="100" id="irr-current-moisture"></div>
+          <div class="form-group"><label class="form-label">Target Moisture (%)</label><input class="form-control" type="number" value="70" min="0" max="100" id="irr-target-moisture"></div>
+          <div class="form-group"><label class="form-label">Crop Growth Stage</label><select class="form-control" id="irr-stage"><option>Germination</option><option>Vegetative</option><option>Flowering</option><option>Grain Fill</option><option>Maturity</option></select></div>
+        </div>
+      <button class="btn btn-primary" onclick="calculateIrrigationPlan()">Calculate Irrigation Plan</button>
     </div>
   </section>
 
@@ -1010,10 +1010,10 @@
     <div class="card" id="crop-results" style="display:none;">
       <div class="card-title"><span class="title-icon">✅</span> Recommended Crops</div>
       <div class="crop-grid" id="crop-grid"></div>
-      <div style="margin-top:16px;background:var(--amber-100);border-radius:var(--radius-sm);padding:12px 14px;font-size:12.5px;color:var(--amber-800);border:1px solid #f0d08a;">
-        <strong>💡 Advisory note:</strong> Wheat and Mustard show highest historical yield in Loamy soils with moderate rainfall in Punjab's Rabi season. Consider intercropping for maximum land utilisation. <em>Replace this with your model's explanation output.</em>
+        <div id="crop-summary" style="margin-top:16px;background:var(--amber-100);border-radius:var(--radius-sm);padding:12px 14px;font-size:12.5px;color:var(--amber-800);border:1px solid #f0d08a;">
+          <strong>💡 Advisory note:</strong> Wheat and Mustard show highest historical yield in Loamy soils with moderate rainfall in Punjab's Rabi season. Consider intercropping for maximum land utilisation. <em>Replace this with your model's explanation output.</em>
+        </div>
       </div>
-    </div>
   </section>
 
   <!-- ════════ PAGE: FARM AI CHAT ════════ -->
@@ -1067,7 +1067,7 @@
         <h2>Sensors & Data</h2>
         <p>Live readings from all field IoT sensors</p>
       </div>
-      <button class="btn btn-secondary" onclick="showToast('📥 Exporting CSV... GET /api/sensors/export')">📥 Export CSV</button>
+      <button class="btn btn-secondary" onclick="exportSensorCsv()">📥 Export CSV</button>
     </div>
 
     <div class="api-banner">
@@ -1361,6 +1361,72 @@ function renderSensors() {
       </div>`).join('');
 }
 
+async function apiFetch(url, options = {}) {
+  const res = await fetch(url, options);
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (_e) {
+    data = null;
+  }
+  if (!res.ok) {
+    const message = data?.error || `Request failed (${res.status})`;
+    throw new Error(message);
+  }
+  return data;
+}
+
+function refreshAllWidgets() {
+  renderSoilBars();
+  renderAlerts();
+  renderChart();
+  renderSchedule();
+  renderDiseaseHistory();
+  renderSensors();
+}
+
+function updateDashboardStats() {
+  const waterToday = MOCK.waterChart?.[MOCK.waterChart.length - 1]?.val ?? 0;
+  const moistureVals = (MOCK.soilMoisture || []).map(s => Number(s.pct) || 0);
+  const avgMoisture = moistureVals.length
+    ? Math.round(moistureVals.reduce((a, b) => a + b, 0) / moistureVals.length)
+    : 0;
+  const fieldsCount = MOCK.soilMoisture?.length ?? 0;
+  const diseaseCount = (MOCK.diseaseHistory || []).filter(
+    h => h.label === 'Disease' || h.label === 'Warning'
+  ).length;
+
+  const waterEl = document.getElementById('stat-water');
+  const moistureEl = document.getElementById('stat-moisture');
+  const fieldsEl = document.getElementById('stat-fields');
+  const diseaseEl = document.getElementById('stat-disease');
+  if (waterEl) waterEl.textContent = `${Math.round(waterToday).toLocaleString('en-IN')} L`;
+  if (moistureEl) moistureEl.textContent = `${avgMoisture}%`;
+  if (fieldsEl) fieldsEl.textContent = String(fieldsCount);
+  if (diseaseEl) diseaseEl.textContent = String(diseaseCount);
+}
+
+async function loadDashboardData(showErrorToast = false) {
+  try {
+    const data = await apiFetch('/api/dashboard');
+    if (data?.soilMoisture) MOCK.soilMoisture = data.soilMoisture;
+    if (data?.alerts) MOCK.alerts = data.alerts;
+    if (data?.waterChart) MOCK.waterChart = data.waterChart;
+    if (data?.schedule) MOCK.schedule = data.schedule;
+    if (data?.diseaseHistory) MOCK.diseaseHistory = data.diseaseHistory;
+    if (data?.sensors) MOCK.sensors = data.sensors;
+    refreshAllWidgets();
+    updateDashboardStats();
+  } catch (err) {
+    console.warn('[dashboard]', err);
+    refreshAllWidgets();
+    updateDashboardStats();
+    if (showErrorToast) {
+      showToast('⚠ Could not load live dashboard data, showing demo values');
+    }
+  }
+}
+
 /* ── DISEASE DETECTION (mock — swap out for real API) ──
    Real implementation:
    const formData = new FormData();
@@ -1382,7 +1448,7 @@ function handleDrop(e) {
   if (file) simulateDisease({ target:{ files:[file] } });
 }
 
-function simulateDisease(event) {
+async function simulateDisease(event) {
   const file = event.target.files[0];
   if (!file) return;
 
@@ -1401,17 +1467,20 @@ function simulateDisease(event) {
   loading.style.display = 'block';
   result.className = 'disease-result';
 
-  // Simulate API latency — replace with actual fetch
-  setTimeout(() => {
-    /* ── BACKEND HOOK ──
-    fetch('/api/disease/analyse', { method:'POST', body: formData })
-      .then(r => r.json())
-      .then(data => showDiseaseResult(data));
-    */
+  try {
+    const formData = new FormData();
+    formData.append('image', file);
+    const data = await apiFetch('/api/disease/analyse', { method: 'POST', body: formData });
+    showDiseaseResult(data);
+    await loadDashboardData();
+  } catch (err) {
+    console.warn('[disease]', err);
     const mock = DISEASE_MOCKS[Math.floor(Math.random() * DISEASE_MOCKS.length)];
-    loading.style.display = 'none';
     showDiseaseResult(mock);
-  }, 1800);
+    showToast('⚠ Disease API unavailable, showing demo result');
+  } finally {
+    loading.style.display = 'none';
+  }
 }
 
 function showDiseaseResult({ type, title, desc, conf, col }) {
@@ -1433,7 +1502,7 @@ function showDiseaseResult({ type, title, desc, conf, col }) {
     <div class="sched-row" style="border-bottom:1px solid var(--border)">
       <div style="flex:1">
         <div style="font-weight:600;font-size:13px">${title} — Just scanned</div>
-        <div style="font-size:11.5px;color:var(--text-300)">Now · ${conf}% confidence · Mock model</div>
+        <div style="font-size:11.5px;color:var(--text-300)">Now · ${conf}% confidence · Live scan</div>
       </div>
       <div class="badge ${badgeMap[type]}">${labelMap[type]}</div>
     </div>`);
@@ -1445,13 +1514,56 @@ function showDiseaseResult({ type, title, desc, conf, col }) {
    const res = await fetch('/api/crops/recommend', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(params) });
    const { crops, summary } = await res.json();
 */
-function runCropAdvisor() {
+async function runCropAdvisor() {
   const btn = document.getElementById('crop-btn');
   btn.textContent = '⏳ Analysing...';
   btn.disabled = true;
 
-  setTimeout(() => {
-    /* ── BACKEND HOOK ── */
+  try {
+    const seasonRaw = document.getElementById('c-season').value || 'Rabi (Oct–Mar)';
+    const waterRaw = document.getElementById('c-water').value || 'Borewell (moderate)';
+    const params = {
+      soil: document.getElementById('c-soil').value || 'loamy',
+      ph: parseFloat(document.getElementById('c-ph').value || '6.5'),
+      rainfall: parseFloat(document.getElementById('c-rain').value || '800'),
+      temp: parseFloat(document.getElementById('c-temp').value || '25'),
+      region: document.getElementById('c-region').value || 'Punjab',
+      season: seasonRaw.toLowerCase().includes('kharif')
+        ? 'kharif'
+        : seasonRaw.toLowerCase().includes('zaid')
+          ? 'zaid'
+          : 'rabi',
+      nitrogen: parseFloat(document.getElementById('c-n').value || '50'),
+      water: waterRaw.toLowerCase().includes('rain')
+        ? 'low'
+        : waterRaw.toLowerCase().includes('canal')
+          ? 'high'
+          : 'medium',
+    };
+
+    const data = await apiFetch('/api/crops/recommend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+
+    const crops = Array.isArray(data?.crops) && data.crops.length ? data.crops : MOCK.cropRec;
+    const grid = document.getElementById('crop-grid');
+    grid.innerHTML = crops.map(c => `
+      <div class="crop-card">
+        <div class="crop-emoji">${c.emoji}</div>
+        <div class="crop-name">${c.name}</div>
+        <div class="crop-why">${c.why}</div>
+        <div class="crop-score">${c.score}% match</div>
+      </div>`).join('');
+    const summaryEl = document.getElementById('crop-summary');
+    if (summaryEl && data?.summary) {
+      summaryEl.innerHTML = `<strong>💡 Advisory note:</strong> ${data.summary}`;
+    }
+    document.getElementById('crop-results').style.display = 'block';
+    showToast(`✅ ${crops.length} crop recommendations ready`);
+  } catch (err) {
+    console.warn('[crops]', err);
     const grid = document.getElementById('crop-grid');
     grid.innerHTML = MOCK.cropRec.map(c => `
       <div class="crop-card">
@@ -1461,10 +1573,11 @@ function runCropAdvisor() {
         <div class="crop-score">${c.score}% match</div>
       </div>`).join('');
     document.getElementById('crop-results').style.display = 'block';
+    showToast('⚠ Crop API unavailable, showing demo recommendations');
+  } finally {
     btn.textContent = '🔍 Get Recommendations';
     btn.disabled = false;
-    showToast('✅ 6 crop recommendations ready');
-  }, 1400);
+  }
 }
 
 /* ── CHAT (mock — swap for real API) ──
@@ -1477,9 +1590,8 @@ function runCropAdvisor() {
    const { reply } = await res.json();
 */
 let chatHistory = [];
-let chatIdx = 0;
 
-function sendMsg() {
+async function sendMsg() {
   const input = document.getElementById('chat-in');
   const btn   = document.getElementById('chat-send-btn');
   const msg   = input.value.trim();
@@ -1501,16 +1613,26 @@ function sendMsg() {
     </div>`);
   msgs.scrollTop = msgs.scrollHeight;
 
-  setTimeout(() => {
-    /* ── BACKEND HOOK ── */
+  try {
+    const data = await apiFetch('/api/chat/message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, history: chatHistory }),
+    });
     document.getElementById(tid)?.remove();
-    const reply = MOCK.chatMocks[chatIdx % MOCK.chatMocks.length];
-    chatIdx++;
+    const reply = data?.reply || 'Sorry, I could not generate a response.';
     addBubble(reply, 'ai');
     chatHistory.push({ role:'assistant', content: reply });
+  } catch (err) {
+    console.warn('[chat]', err);
+    document.getElementById(tid)?.remove();
+    const fallback = 'Sorry, chat service is unavailable right now. Please try again shortly.';
+    addBubble(fallback, 'ai');
+    chatHistory.push({ role:'assistant', content: fallback });
+  } finally {
     btn.disabled = false;
     btn.textContent = 'Send';
-  }, 1200 + Math.random() * 800);
+  }
 }
 
 function addBubble(text, role) {
@@ -1530,17 +1652,29 @@ function quickMsg(msg) {
 }
 
 /* ── IRRIGATION ACCEPT ── */
-function acceptIrrPlan() {
-  /* ── BACKEND HOOK: POST /api/irrigation/accept ── */
-  showToast('✅ Irrigation plan accepted — schedule updated');
+async function acceptIrrPlan() {
+  try {
+    await apiFetch('/api/irrigation/accept', { method: 'POST' });
+    showToast('✅ Irrigation plan accepted — schedule updated');
+    await loadDashboardData();
+  } catch (err) {
+    console.warn('[irrigation/accept]', err);
+    showToast('⚠ Could not accept irrigation plan');
+  }
 }
 
 /* ── SETTINGS SAVE ── */
-function saveSettings() {
+async function saveSettings() {
+  const waterRaw = document.getElementById('s-water').value;
+  const waterMap = {
+    'Canal Irrigation': 'canal',
+    'Borewell': 'borewell',
+    'Rainwater': 'rainwater',
+  };
   const data = {
     farmName:      document.getElementById('s-fname').value,
     area:          document.getElementById('s-area').value,
-    waterSource:   document.getElementById('s-water').value,
+    waterSource:   waterMap[waterRaw] || 'borewell',
     alertLanguage: document.getElementById('s-lang').value,
     apiUrl:        document.getElementById('s-api').value,
     autoIrr:       document.getElementById('s-auto-irr').checked,
@@ -1549,9 +1683,115 @@ function saveSettings() {
     sms:           document.getElementById('s-sms').checked,
     mandi:         document.getElementById('s-mandi').checked,
   };
-  /* ── BACKEND HOOK: POST /api/settings ── */
-  console.log('Settings to save:', data);
-  showToast('💾 Settings saved successfully');
+  try {
+    await apiFetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    showToast('💾 Settings saved successfully');
+  } catch (err) {
+    console.warn('[settings/save]', err);
+    showToast('⚠ Failed to save settings');
+  }
+}
+
+async function loadSettings() {
+  try {
+    const data = await apiFetch('/api/settings');
+    const s = data?.settings;
+    if (!s) return;
+    document.getElementById('s-fname').value = s.farmName ?? document.getElementById('s-fname').value;
+    document.getElementById('s-area').value = s.area ?? document.getElementById('s-area').value;
+    const waterEl = document.getElementById('s-water');
+    const waterMap = {
+      canal: 'Canal Irrigation',
+      borewell: 'Borewell',
+      rainwater: 'Rainwater',
+    };
+    if (s.waterSource && waterMap[s.waterSource]) waterEl.value = waterMap[s.waterSource];
+    document.getElementById('s-lang').value = s.alertLanguage ?? document.getElementById('s-lang').value;
+    document.getElementById('s-api').value = s.apiUrl ?? '';
+    document.getElementById('s-auto-irr').checked = !!s.autoIrr;
+    document.getElementById('s-weather').checked = !!s.weather;
+    document.getElementById('s-disease').checked = !!s.disease;
+    document.getElementById('s-sms').checked = !!s.sms;
+    document.getElementById('s-mandi').checked = !!s.mandi;
+  } catch (err) {
+    console.warn('[settings/load]', err);
+  }
+}
+
+async function calculateIrrigationPlan() {
+  const cropType = document.getElementById('irr-crop').value;
+  const soilMoisture = parseFloat(document.getElementById('irr-current-moisture').value || '50');
+  const areaAcres = parseFloat(document.getElementById('irr-area').value || '1');
+  const areaHa = areaAcres * 0.404686;
+  try {
+    const data = await apiFetch('/api/irrigation/calculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cropType,
+        soilMoisture,
+        areaHa,
+      }),
+    });
+    const msg = data?.recommendation || `Apply ${data?.waterLitres ?? 0} L over ${data?.durationMin ?? 0} min`;
+    document.getElementById('irr-ai-box').innerHTML = `<strong>Calculated suggestion:</strong><br>${msg}`;
+    showToast('✅ Irrigation plan calculated');
+  } catch (err) {
+    console.warn('[irrigation/calculate]', err);
+    showToast('⚠ Failed to calculate irrigation plan');
+  }
+}
+
+async function runIrrigationNow() {
+  try {
+    const fieldsRes = await apiFetch('/api/crops/fields');
+    const fieldId = fieldsRes?.fields?.[0]?.id;
+    if (!fieldId) {
+      showToast('⚠ No field found to run irrigation');
+      return;
+    }
+    const metaText = (MOCK.schedule || [])[0]?.meta || '';
+    const durationMatch = metaText.match(/(\d+)\s*min/i);
+    const waterMatch = metaText.match(/(\d+)\s*L/i);
+    await apiFetch('/api/irrigation/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fieldId,
+        durationMin: durationMatch ? Number(durationMatch[1]) : undefined,
+        waterUsedL: waterMatch ? Number(waterMatch[1]) : undefined,
+      }),
+    });
+    showToast('✅ Manual irrigation run triggered');
+    await loadDashboardData();
+  } catch (err) {
+    console.warn('[irrigation/run]', err);
+    showToast('⚠ Failed to trigger irrigation run');
+  }
+}
+
+async function exportSensorCsv() {
+  try {
+    const res = await fetch('/api/sensors/export');
+    if (!res.ok) throw new Error(`Failed (${res.status})`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sensor-readings.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast('📥 CSV exported');
+  } catch (err) {
+    console.warn('[sensors/export]', err);
+    showToast('⚠ Failed to export CSV');
+  }
 }
 
 /* ── TOAST ── */
@@ -1573,12 +1813,9 @@ function updateClock() {
 setInterval(updateClock, 60000);
 
 /* ── INIT ── */
-renderSoilBars();
-renderAlerts();
-renderChart();
-renderSchedule();
-renderDiseaseHistory();
-renderSensors();
+loadDashboardData(true);
+loadSettings();
+setInterval(() => loadDashboardData(false), 30000);
 </script>
 </body>
 </html>
