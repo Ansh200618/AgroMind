@@ -999,10 +999,10 @@
         <div class="form-group"><label class="form-label">pH Level</label><input class="form-control" type="number" id="c-ph" value="6.8" min="4" max="9" step="0.1"></div>
         <div class="form-group"><label class="form-label">Annual Rainfall (mm)</label><input class="form-control" type="number" id="c-rain" value="650" step="50"></div>
         <div class="form-group"><label class="form-label">Temperature (°C)</label><input class="form-control" type="number" id="c-temp" value="28" step="1"></div>
-        <div class="form-group"><label class="form-label">State / Region</label><select class="form-control" id="c-region"><option>Punjab</option><option>Haryana</option><option>UP</option><option>Rajasthan</option><option>Maharashtra</option><option>MP</option></select></div>
-        <div class="form-group"><label class="form-label">Season</label><select class="form-control" id="c-season"><option>Rabi (Oct–Mar)</option><option>Kharif (Jun–Sep)</option><option>Zaid</option></select></div>
-        <div class="form-group"><label class="form-label">Nitrogen (kg/ha)</label><input class="form-control" type="number" id="c-n" value="80" step="10"></div>
-        <div class="form-group"><label class="form-label">Water Availability</label><select class="form-control" id="c-water"><option>Canal (abundant)</option><option>Borewell (moderate)</option><option>Rain-fed (limited)</option></select></div>
+          <div class="form-group"><label class="form-label">State / Region</label><select class="form-control" id="c-region"><option>Punjab</option><option>Haryana</option><option>UP</option><option>Rajasthan</option><option>Maharashtra</option><option>MP</option></select></div>
+          <div class="form-group"><label class="form-label">Season</label><select class="form-control" id="c-season"><option value="rabi">Rabi (Oct–Mar)</option><option value="kharif">Kharif (Jun–Sep)</option><option value="zaid">Zaid</option></select></div>
+          <div class="form-group"><label class="form-label">Nitrogen (kg/ha)</label><input class="form-control" type="number" id="c-n" value="80" step="10"></div>
+          <div class="form-group"><label class="form-label">Water Availability</label><select class="form-control" id="c-water"><option value="high">Canal (abundant)</option><option value="medium">Borewell (moderate)</option><option value="low">Rain-fed (limited)</option></select></div>
       </div>
       <button class="btn btn-primary" id="crop-btn" onclick="runCropAdvisor()">🔍 Get Recommendations</button>
     </div>
@@ -1143,7 +1143,7 @@
         <div class="form-grid">
           <div class="form-group"><label class="form-label">Farm Name</label><input class="form-control" value="Singh's Farm, Ludhiana" id="s-fname"></div>
           <div class="form-group"><label class="form-label">Total Area (Acres)</label><input class="form-control" type="number" value="18.5" id="s-area"></div>
-          <div class="form-group"><label class="form-label">Primary Water Source</label><select class="form-control" id="s-water"><option>Canal Irrigation</option><option>Borewell</option><option>Rainwater</option></select></div>
+          <div class="form-group"><label class="form-label">Primary Water Source</label><select class="form-control" id="s-water"><option value="canal">Canal Irrigation</option><option value="borewell">Borewell</option><option value="rainwater">Rainwater</option></select></div>
           <div class="form-group"><label class="form-label">Alert Language</label><select class="form-control" id="s-lang"><option>English</option><option>Punjabi</option><option>Hindi</option></select></div>
           <div class="form-group"><label class="form-label">API Base URL</label><input class="form-control" placeholder="https://your-backend.com/api" id="s-api"></div>
           <div class="form-group"><label class="form-label">API Key</label><input class="form-control" type="password" placeholder="sk-..." id="s-key"></div>
@@ -1231,6 +1231,15 @@ const MOCK = {
     'Mustard intercropped with chickpea is a classic Punjab combo. Use 6:2 row ratio (6 mustard, 2 chickpea). The legume fixes nitrogen that benefits mustard. Sow simultaneously in October for Rabi season.',
     'Nitrogen deficiency shows as yellowing (chlorosis) starting from older/lower leaves moving upward, stunted growth, and pale green colour overall. Apply urea top-dressing at 40–60 kg/ha. Confirm with a soil test first.',
   ],
+};
+
+// Unit conversion: 1 acre = 0.404686 hectares
+const ACRES_TO_HECTARES = 0.404686;
+const DASHBOARD_REFRESH_INTERVAL_MS = 30000;
+const SETTINGS_WATER_OPTIONS = {
+  canal: 'Canal Irrigation',
+  borewell: 'Borewell',
+  rainwater: 'Rainwater',
 };
 
 /* ── SIDEBAR TOGGLE (MOBILE) ── */
@@ -1363,11 +1372,21 @@ function renderSensors() {
 
 async function apiFetch(url, options = {}) {
   const res = await fetch(url, options);
+  const contentType = res.headers.get('content-type') || '';
   let data = null;
-  try {
-    data = await res.json();
-  } catch (_e) {
-    data = null;
+  if (contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch (_e) {
+      data = null;
+    }
+  } else {
+    try {
+      const text = await res.text();
+      data = text ? { error: text } : null;
+    } catch (_e) {
+      data = null;
+    }
   }
   if (!res.ok) {
     const message = data?.error || `Request failed (${res.status})`;
@@ -1377,12 +1396,14 @@ async function apiFetch(url, options = {}) {
 }
 
 function refreshAllWidgets() {
-  renderSoilBars();
-  renderAlerts();
-  renderChart();
-  renderSchedule();
-  renderDiseaseHistory();
-  renderSensors();
+  requestAnimationFrame(() => {
+    renderSoilBars();
+    renderAlerts();
+    renderChart();
+    renderSchedule();
+    renderDiseaseHistory();
+    renderSensors();
+  });
 }
 
 function updateDashboardStats() {
@@ -1520,25 +1541,17 @@ async function runCropAdvisor() {
   btn.disabled = true;
 
   try {
-    const seasonRaw = document.getElementById('c-season').value || 'Rabi (Oct–Mar)';
-    const waterRaw = document.getElementById('c-water').value || 'Borewell (moderate)';
+    const season = document.getElementById('c-season').value || 'rabi';
+    const water = document.getElementById('c-water').value || 'medium';
     const params = {
       soil: document.getElementById('c-soil').value || 'loamy',
       ph: parseFloat(document.getElementById('c-ph').value || '6.5'),
       rainfall: parseFloat(document.getElementById('c-rain').value || '800'),
       temp: parseFloat(document.getElementById('c-temp').value || '25'),
       region: document.getElementById('c-region').value || 'Punjab',
-      season: seasonRaw.toLowerCase().includes('kharif')
-        ? 'kharif'
-        : seasonRaw.toLowerCase().includes('zaid')
-          ? 'zaid'
-          : 'rabi',
+      season,
       nitrogen: parseFloat(document.getElementById('c-n').value || '50'),
-      water: waterRaw.toLowerCase().includes('rain')
-        ? 'low'
-        : waterRaw.toLowerCase().includes('canal')
-          ? 'high'
-          : 'medium',
+      water,
     };
 
     const data = await apiFetch('/api/crops/recommend', {
@@ -1665,16 +1678,10 @@ async function acceptIrrPlan() {
 
 /* ── SETTINGS SAVE ── */
 async function saveSettings() {
-  const waterRaw = document.getElementById('s-water').value;
-  const waterMap = {
-    'Canal Irrigation': 'canal',
-    'Borewell': 'borewell',
-    'Rainwater': 'rainwater',
-  };
   const data = {
     farmName:      document.getElementById('s-fname').value,
     area:          document.getElementById('s-area').value,
-    waterSource:   waterMap[waterRaw] || 'borewell',
+    waterSource:   document.getElementById('s-water').value || 'borewell',
     alertLanguage: document.getElementById('s-lang').value,
     apiUrl:        document.getElementById('s-api').value,
     autoIrr:       document.getElementById('s-auto-irr').checked,
@@ -1704,12 +1711,9 @@ async function loadSettings() {
     document.getElementById('s-fname').value = s.farmName ?? document.getElementById('s-fname').value;
     document.getElementById('s-area').value = s.area ?? document.getElementById('s-area').value;
     const waterEl = document.getElementById('s-water');
-    const waterMap = {
-      canal: 'Canal Irrigation',
-      borewell: 'Borewell',
-      rainwater: 'Rainwater',
-    };
-    if (s.waterSource && waterMap[s.waterSource]) waterEl.value = waterMap[s.waterSource];
+    if (s.waterSource && SETTINGS_WATER_OPTIONS[s.waterSource]) {
+      waterEl.value = s.waterSource;
+    }
     document.getElementById('s-lang').value = s.alertLanguage ?? document.getElementById('s-lang').value;
     document.getElementById('s-api').value = s.apiUrl ?? '';
     document.getElementById('s-auto-irr').checked = !!s.autoIrr;
@@ -1726,7 +1730,7 @@ async function calculateIrrigationPlan() {
   const cropType = document.getElementById('irr-crop').value;
   const soilMoisture = parseFloat(document.getElementById('irr-current-moisture').value || '50');
   const areaAcres = parseFloat(document.getElementById('irr-area').value || '1');
-  const areaHa = areaAcres * 0.404686;
+  const areaHectares = areaAcres * ACRES_TO_HECTARES;
   try {
     const data = await apiFetch('/api/irrigation/calculate', {
       method: 'POST',
@@ -1734,7 +1738,7 @@ async function calculateIrrigationPlan() {
       body: JSON.stringify({
         cropType,
         soilMoisture,
-        areaHa,
+        areaHa: areaHectares,
       }),
     });
     const msg = data?.recommendation || `Apply ${data?.waterLitres ?? 0} L over ${data?.durationMin ?? 0} min`;
@@ -1754,16 +1758,11 @@ async function runIrrigationNow() {
       showToast('⚠ No field found to run irrigation');
       return;
     }
-    const metaText = (MOCK.schedule || [])[0]?.meta || '';
-    const durationMatch = metaText.match(/(\d+)\s*min/i);
-    const waterMatch = metaText.match(/(\d+)\s*L/i);
     await apiFetch('/api/irrigation/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         fieldId,
-        durationMin: durationMatch ? Number(durationMatch[1]) : undefined,
-        waterUsedL: waterMatch ? Number(waterMatch[1]) : undefined,
       }),
     });
     showToast('✅ Manual irrigation run triggered');
@@ -1815,7 +1814,7 @@ setInterval(updateClock, 60000);
 /* ── INIT ── */
 loadDashboardData(true);
 loadSettings();
-setInterval(() => loadDashboardData(false), 30000);
+setInterval(() => loadDashboardData(false), DASHBOARD_REFRESH_INTERVAL_MS);
 </script>
 </body>
 </html>
